@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+   <html lang="en">
+   <head>
+       <meta charset="UTF-8">
+       <meta name="viewport" content="width=device-width, initial-scale=1.0">
+       <title>Ollama</title>
+       <link rel="stylesheet" href="style.css">
+	   <script src="script.js"></script>
+   </head>
+   <body>
+       <div id="container">
+           <h1>Ollama</h1>
+           <div class="section">
+               <strong>Language Model Selection and Input Handler</strong>
+               <select id="modelSelect">
+                   <option value="tinyllama">tinyllama</option>
+                   <option value="phi3">phi3</option>
+                   <option value="codegemma:2b">codegemma:2b</option>
+                   <option value="gemma:2b">gemma:2b</option>
+                   <option value="qwen:0.5b">qwen:0.5b</option>
+                   <option value="deepseek-coder:latest">deepseek-coder:latest</option>
+               </select>
+               <textarea id="userInput" placeholder="Enter your input here"></textarea>
+               <button onclick="submitInput()">Submit</button>
+           </div>
+           <div class="section" id="outputSection" style="display: none;">
+               <strong>Output:</strong>
+               <div id="output"></div>
+           </div>
+           <div class="section">
+               <strong>Everything AI says is made up!</strong>
+           </div>
+       </div>
+   </body>
+   </html>
