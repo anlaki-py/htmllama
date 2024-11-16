@@ -1,35 +1,772 @@
-<!DOCTYPE html>
-   <html lang="en">
-   <head>
-       <meta charset="UTF-8">
-       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-       <title>Ollama</title>
-       <link rel="stylesheet" href="style.css">
-	   <script src="script.js"></script>
-   </head>
-   <body>
-       <div id="container">
-           <h1>Ollama</h1>
-           <div class="section">
-               <strong>Language Model Selection and Input Handler</strong>
-               <select id="modelSelect">
-                   <option value="tinyllama">tinyllama</option>
-                   <option value="phi3">phi3</option>
-                   <option value="codegemma:2b">codegemma:2b</option>
-                   <option value="gemma:2b">gemma:2b</option>
-                   <option value="qwen:0.5b">qwen:0.5b</option>
-                   <option value="deepseek-coder:latest">deepseek-coder:latest</option>
-               </select>
-               <textarea id="userInput" placeholder="Enter your input here"></textarea>
-               <button onclick="submitInput()">Submit</button>
-           </div>
-           <div class="section" id="outputSection" style="display: none;">
-               <strong>Output:</strong>
-               <div id="output"></div>
-           </div>
-           <div class="section">
-               <strong>Everything AI says is made up!</strong>
-           </div>
-       </div>
-   </body>
-   </html>
+<html><head><base href="http://localhost:8080">
+<title>Ollama WebUI - Advanced Local AI Interface</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  :root {
+    --bg-color: #fff0f5;
+    --text-color: #4a0e1c;
+    --header-bg: #ff69b4;
+    --header-text: #ffffff;
+    --card-bg: #ffffff;
+    --card-shadow: 0 4px 6px rgba(255, 105, 180, 0.1);
+    --input-border: #ffb6c1;
+    --button-bg: #FF0072;
+    --button-hover: #ff69b4;
+    --ai-message-bg: #ffe4e1;
+    --user-message-bg: #ff69b4;
+    --user-message-text: #ffffff;
+    --code-bg: #f8f8f8;
+    --code-text: #333;
+    --blockquote-border: #ff69b4;
+    --tooltip-bg: rgba(255, 105, 180, 0.9);
+    --tooltip-text: #ffffff;
+    --modal-bg: rgba(255, 105, 180, 0.8);
+    --modal-content-bg: #ffffff;
+    --border-before-color: #ffb6c1;
+    --border-after-color: #FF0072;
+  }
+
+  body.dark-mode {
+    --bg-color: #4a0e1c;
+    --text-color: #ffe4e1;
+    --header-bg: #8b0a50;
+    --header-text: #fff0f5;
+    --card-bg: #69132f;
+    --card-shadow: 0 4px 6px rgba(255, 105, 180, 0.3);
+    --input-border: #ff69b4;
+    --button-bg: #FF0072;
+    --button-hover: #ff69b4;
+    --ai-message-bg: #8b0a50;
+    --user-message-bg: #ff69b4;
+    --user-message-text: #ffffff;
+    --code-bg: #2d2d2d;
+    --code-text: #f8f8f8;
+    --blockquote-border: #ff1493;
+    --tooltip-bg: rgba(255, 20, 147, 0.9);
+    --tooltip-text: #ffffff;
+    --modal-bg: rgba(139, 10, 80, 0.8);
+    --modal-content-bg: #4a0e1c;
+    --border-before-color: #FF69B4;
+    --border-after-color: #FF0072;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+    margin: 0;
+    padding: 0;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+  header {
+    background-color: var(--header-bg);
+    color: var(--header-text);
+    text-align: center;
+    padding: 1rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  main {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 1rem;
+  }
+  h1, h2, h3 {
+    font-weight: 300;
+  }
+  .tagline {
+    font-style: italic;
+    margin-bottom: 1rem;
+    color: var(--header-text);
+  }
+  .container {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  .sidebar, .chat-window {
+    background-color: var(--card-bg);
+    border-radius: 8px;
+    padding: 1rem;
+    box-shadow: var(--card-shadow);
+  }
+  .chat-window {
+    display: flex;
+    flex-direction: column;
+    height: 70vh;
+  }
+  .chat-messages {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+  }
+  .message {
+    max-width: 80%;
+    padding: 0.75rem;
+    border-radius: 18px;
+    margin-bottom: 1rem;
+    word-wrap: break-word;
+  }
+  .user {
+    background-color: var(--user-message-bg);
+    color: var(--user-message-text);
+    align-self: flex-end;
+  }
+  .ai {
+    background-color: var(--ai-message-bg);
+    align-self: flex-start;
+  }
+  .input-area {
+    display: flex;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--input-border);
+  }
+  #user-input {
+    flex-grow: 1;
+    padding: 0.75rem;
+    border: 1px solid var(--input-border);
+    border-radius: 4px;
+    font-size: 1rem;
+    background-color: var(--card-bg);
+    color: var(--text-color);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    border: none;
+    border-bottom: 2px solid var(--border-before-color);
+  }
+  #user-input:focus {
+    outline: none;
+  }
+  #user-input:focus + .input-border {
+    width: 100%;
+  }
+  .input-border {
+    position: absolute;
+    background: var(--border-after-color);
+    width: 0%;
+    height: 2px;
+    bottom: 0;
+    left: 0;
+    transition: width 0.3s cubic-bezier(0.6, -0.28, 0.735, 0.045);
+  }
+  button {
+    font-size: 18px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    display: inline-block;
+    text-align: center;
+    font-weight: bold;
+    padding: 0.7em 2em;
+    border: 3px solid #FF0072;
+    border-radius: 2px;
+    position: relative;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.16), 0 3px 6px rgba(0, 0, 0, 0.1);
+    color: #FF0072;
+    text-decoration: none;
+    transition: 0.3s ease all;
+    z-index: 1;
+    margin-left: 0.5rem;
+  }
+  button:before {
+    transition: 0.5s all ease;
+    position: absolute;
+    top: 0;
+    left: 50%;
+    right: 50%;
+    bottom: 0;
+    opacity: 0;
+    content: '';
+    background-color: #FF0072;
+    z-index: -1;
+  }
+  button:hover:before, button:focus:before {
+    transition: 0.5s all ease;
+    left: 0;
+    right: 0;
+    opacity: 1;
+  }
+  button:hover, button:focus {
+    color: white;
+  }  
+  button:active {
+    transform: scale(0.9);
+  }
+  .model-selector, .parameter-control, .system-prompt {
+    margin-bottom: 1rem;
+  }
+  select, input[type="number"], input[type="range"], input[type="text"] {
+    width: 100%;
+    padding: 0.5rem;
+    font-size: 1rem;
+    border-radius: 4px;
+    border: 1px solid var(--input-border);
+    margin-top: 0.25rem;
+    background-color: var(--card-bg);
+    color: var(--text-color);
+  }
+  #system-prompt {
+    flex-grow: 1;
+    padding: 0.75rem;
+    border: 1px solid var(--input-border);
+    border-radius: 4px;
+    font-size: 1rem;
+    background-color: var(--card-bg);
+    color: var(--text-color); 
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    border: none;
+    border-bottom: 2px solid var(--border-before-color);
+  }
+  #system-prompt:focus {
+    outline: none;
+  }
+  #system-prompt:focus + .input-border {
+    width: 100%;
+  }
+  label {
+    display: block;
+    margin-bottom: 0.25rem;
+    color: var(--text-color);
+  }
+  .model-info {
+    font-size: 0.9rem;
+    color: var(--text-color);
+    opacity: 0.8;
+    margin-top: 0.5rem;
+  }
+  .message pre {
+    background-color: var(--code-bg);
+    color: var(--code-text);
+    padding: 1rem;
+    border-radius: 4px;
+    overflow-x: auto;
+    position: relative;
+  }
+  .message pre::after {
+    content: "Click to copy";
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    background-color: var(--button-bg);
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  .message pre:hover::after {
+    opacity: 1;
+  }
+  .message code {
+    background-color: var(--code-bg);
+    color: var(--code-text);
+    padding: 0.2rem 0.4rem;
+    border-radius: 3px;
+  }
+  .message blockquote {
+    border-left: 3px solid var(--blockquote-border);
+    margin: 0;
+    padding-left: 1rem;
+    font-style: italic;
+  }
+  .tooltip {
+    position: relative;
+    display: inline-block;
+    cursor: help;
+  }
+  .info-icon {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    background-color: var(--button-bg);
+    color: white;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 18px;
+    font-size: 12px;
+    margin-left: 5px;
+    cursor: pointer;
+  }
+  .modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: var(--modal-bg);
+  }
+  .modal-content {
+    background-color: var(--modal-content-bg);
+    margin: 15% auto;
+    padding: 20px;
+    border-radius: 8px;
+    max-width: 500px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+  .close {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+  }
+  .close:hover,
+  .close:focus {
+    color: #000;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .toggle-settings {
+    margin-left: 1rem;
+  }
+  .device-settings {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+  .device-settings button {
+    flex: 1;
+  }
+  .header-buttons {
+    display: flex;
+    align-items: center;
+  }
+
+  /* Custom range slider styles */
+  .PB-range-slider {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 4px;
+    border-radius: 5px;
+    background: var(--input-border);
+    outline: none;
+    opacity: 0.7;
+    transition: opacity .2s;
+  }
+
+  .PB-range-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background-color: var(--button-bg);
+    cursor: pointer;
+    transition: 0.3s ease-in-out;
+  }
+  .PB-range-slider::-webkit-slider-thumb:hover{
+    box-shadow: 0px 0px 0px 8px rgba(255, 0, 114, 0.16);
+    transition: 0.3s ease-in-out;
+  }
+  .PB-range-slider::-moz-range-thumb {
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background-color: var(--button-bg);
+    cursor: pointer;
+  }
+  .PB-range-slider-div{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 1rem;
+    border-radius: 6px;
+    border: 1px solid var(--input-border);
+    box-shadow: 0px 1px 2px 0px rgba(31, 30, 36, 0.12);
+  }
+
+  .PB-range-slidervalue{
+    font-weight: 600;
+  }
+
+  @media (min-width: 768px) {
+    .container {
+      flex-direction: row;
+    }
+    .sidebar {
+      flex: 1;
+    }
+    .chat-window {
+      flex: 2;
+    }
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Ollama WebUI - Advanced</h1>
+    <div class="header-buttons">
+      <button class="toggle-settings" onclick="toggleDarkMode()">Toggle Dark Mode</button>
+      <button class="toggle-settings" onclick="toggleSettingsPanel()">Toggle Settings</button>
+    </div>
+  </header>
+  
+  <main>
+    <div class="container">
+      <div class="sidebar" id="settings-panel">
+        <div class="model-selector">
+          <label for="model-select">Select Model:<span class="info-icon" onclick="showModal('model-select-info')">?</span></label>
+          <select id="model-select" onchange="updateModelInfo()">
+            <option value="">Loading models...</option>
+          </select>
+          <div id="model-info" class="model-info"></div>
+        </div>
+
+        <div class="system-prompt">
+          <label for="system-prompt">System Prompt:<span class="info-icon" onclick="showModal('system-prompt-info')">?</span></label>
+          <textarea id="system-prompt" rows="4">You are a helpful AI assistant. Your primary goal is to assist users in a friendly and efficient manner. You provide accurate information, solve problems, and offer creative solutions.
+You can generate text, answer questions, create detailed descriptions, and provide recommendations. You understand the context and nuances of conversations, ensuring that your responses are tailored to the user's needs. Additionally, you can handle multiple tasks simultaneously and adapt to various requests, from generating images to offering technical support. Your tone is always polite, professional, and engaging, making users feel valued and understood.</textarea>
+          <span class="input-border"></span>
+        </div>
+
+        <div class="parameter-control">
+          <label for="temperature">Temperature:<span class="info-icon" onclick="showModal('temperature-info')">?</span></label>
+          <div class="PB-range-slider-div">
+            <input type="range" id="temperature" min="0" max="1" step="0.1" value="0.7" class="PB-range-slider">
+            <span id="temperature-value" class="PB-range-slidervalue">0.7</span>
+          </div>
+        </div>
+
+        <div class="parameter-control">
+          <label for="max-tokens">Max Tokens:<span class="info-icon" onclick="showModal('max-tokens-info')">?</span></label>
+          <div class="PB-range-slider-div">
+            <input type="range" id="max-tokens" min="1" max="2048" value="256" class="PB-range-slider">
+            <span id="max-tokens-value" class="PB-range-slidervalue">256</span>
+          </div>
+        </div>
+
+        <div class="parameter-control">
+          <label for="top-p">Top P:<span class="info-icon" onclick="showModal('top-p-info')">?</span></label>
+          <div class="PB-range-slider-div">
+            <input type="range" id="top-p" min="0" max="1" step="0.05" value="0.9" class="PB-range-slider">
+            <span id="top-p-value" class="PB-range-slidervalue">0.9</span>
+          </div>
+        </div>
+
+        <div class="parameter-control">
+          <label for="memory-length">Memory Length:<span class="info-icon" onclick="showModal('memory-length-info')">?</span></label>
+          <div class="PB-range-slider-div">
+            <input type="range" id="memory-length" min="1" max="100" value="10" class="PB-range-slider">
+            <span id="memory-length-value" class="PB-range-slidervalue">10</span>
+          </div>
+        </div>
+
+        <div class="device-settings">
+          <button onclick="setDeviceSettings('phone')">Phone Settings</button>
+          <button onclick="setDeviceSettings('pc')">PC Settings</button>
+        </div>
+
+        <button onclick="loadModel()">Load Model</button>
+
+      </div>
+
+      <div class="chat-window">
+        <div class="chat-messages" id="chat-messages">
+          <div class="message ai">
+            <!-- Markdown content will be inserted here -->
+          </div>
+        </div>
+        <div class="input-area">
+          <div class="form-control">
+            <input type="text" id="user-input" placeholder="Type your message here..." class="input input-alt">
+            <span class="input-border input-border-alt"></span>
+          </div>
+          <button onclick="sendMessage()">Send</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Modal -->
+  <div id="infoModal" class="modal">
+    <div class="modal-content">
+      <span class="close" onclick="closeModal()">&times;</span>
+      <p id="modalText"></p>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script>
+    let currentModel = '';
+    let systemPrompt = 'You are a helpful AI assistant. Your primary goal is to assist users in a friendly and efficient manner. You provide accurate information, solve problems, and offer creative solutions.';
+
+    const modelInfo = {};
+    let conversationHistory = [];
+
+    function showModal(infoType) {
+      const modal = document.getElementById('infoModal');
+      const modalText = document.getElementById('modalText');
+      switch(infoType) {
+        case 'model-select-info':
+          modalText.textContent = 'Select the AI model to use for generating responses. Different models have varying capabilities and may produce different results.';
+          break;
+        case 'system-prompt-info':
+          modalText.textContent = 'The system prompt sets the context and behavior for the AI model. It guides how the AI responds to user inputs. Customize it to define the AI\'s role, tone, and knowledge.';
+          break;
+        case 'temperature-info':
+          modalText.textContent = 'Temperature controls the randomness and creativity of the AI\'s responses. Lower values (e.g., 0.2) make the output more focused and deterministic, while higher values (e.g., 0.8) allow for more diverse and creative outputs.';
+          break;
+        case 'max-tokens-info':
+          modalText.textContent = 'Max tokens determine the maximum length of the AI\'s response. A token is roughly 4 characters or 0.75 words. Adjust this value based on your desired response length and the complexity of the task.';
+          break;
+        case 'top-p-info':
+          modalText.textContent = 'Top P (nucleus sampling) controls the diversity of the AI\'s responses by considering only the most likely tokens whose cumulative probability exceeds the specified value. Lower values (e.g., 0.5) result in more focused outputs, while higher values (e.g., 0.95) allow for more diverse responses.';
+          break;
+        case 'memory-length-info':
+          modalText.textContent = 'Memory length determines the number of previous messages (both user and AI) that are included in the conversation history for context. A longer memory allows the AI to maintain better context and coherence across multiple interactions. Adjust this value based on your device\'s memory constraints and the complexity of the conversation.';
+          break;
+      }
+      modal.style.display = 'block';
+    }
+
+    function closeModal() {
+      document.getElementById('infoModal').style.display = 'none';
+    }
+
+    window.onclick = function(event) {
+      if (event.target == document.getElementById('infoModal')) {
+        closeModal();
+      }
+    }
+
+    async function fetchModels() {
+      try {
+        const response = await fetch('http://localhost:11434/api/tags');
+        
+        if (response.ok) {
+          const data = await response.json();
+          const modelSelect = document.getElementById('model-select');
+          modelSelect.innerHTML = '';
+          data.models.forEach(model => {
+            const option = document.createElement('option');
+            option.value = model.name;
+            option.textContent = model.name;
+            modelSelect.appendChild(option);
+            modelInfo[model.name] = `Size: ${model.size}, Modified: ${new Date(model.modified).toLocaleString()}`;
+          });
+          updateModelInfo();
+        } else {
+          addAIMessage('Failed to fetch models. Please check your Ollama installation.');
+        }
+      } catch (error) {
+        console.error('Error fetching models:', error);
+        addAIMessage('An error occurred while fetching models. Please ensure Ollama is running and accessible.');
+      }
+    }
+
+    function updateModelInfo() {
+      const model = document.getElementById('model-select').value;
+      const infoDiv = document.getElementById('model-info');
+      infoDiv.textContent = modelInfo[model] || 'No additional information available.';
+    }
+
+    async function loadModel() {
+      const model = document.getElementById('model-select').value;
+      const temperature = document.getElementById('temperature').value;
+      const maxTokens = document.getElementById('max-tokens').value;
+      const topP = document.getElementById('top-p').value;
+      systemPrompt = document.getElementById('system-prompt').value;
+      const memoryLength = parseInt(document.getElementById('memory-length').value);
+
+      addAIMessage(`Loading model: ${model}. Please wait...`);
+
+      try {
+        const response = await fetch('http://localhost:11434/api/generate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: model,
+            prompt: `${systemPrompt}\nSystem: You are now loaded and ready. Respond with a brief greeting.`,
+            stream: false,
+            options: {
+              temperature: parseFloat(temperature),
+              num_predict: parseInt(maxTokens),
+              top_p: parseFloat(topP)
+            }
+          }),
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          addAIMessage(`Model ${model} loaded successfully. ${result.response}`);
+          currentModel = model;
+          conversationHistory = []; // Reset conversation history when loading a new model
+        } else {
+          addAIMessage('Failed to load the model. Please check your Ollama installation and try again.');
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        addAIMessage('An error occurred while loading the model. Please ensure Ollama is running and accessible.');
+      }
+    }
+
+    function addMessage(message, type) {
+      const chatMessages = document.getElementById('chat-messages');
+      const messageDiv = document.createElement('div');
+      messageDiv.className = `message ${type}`;
+      messageDiv.innerHTML = marked.parse(message);
+      chatMessages.appendChild(messageDiv);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+
+      // Add click-to-copy functionality for code blocks
+      messageDiv.querySelectorAll('pre').forEach(pre => {
+        pre.addEventListener('click', function() {
+          const code = this.querySelector('code').textContent;
+          navigator.clipboard.writeText(code).then(() => {
+            const notification = document.createElement('div');
+            notification.textContent = 'Copied to clipboard!';
+            notification.style.position = 'fixed';
+            notification.style.bottom = '20px';
+            notification.style.left = '50%';
+            notification.style.transform = 'translateX(-50%)';
+            notification.style.backgroundColor = 'var(--tooltip-bg)';
+            notification.style.color = 'var(--tooltip-text)';
+            notification.style.padding = '10px';
+            notification.style.borderRadius = '5px';
+            notification.style.zIndex = '1000';
+            document.body.appendChild(notification);
+            setTimeout(() => notification.remove(), 2000);
+          });
+        });
+      });
+    }
+
+    function addAIMessage(message) {
+      addMessage(message, 'ai');
+    }
+
+    async function sendMessage() {
+      const userInput = document.getElementById('user-input');
+      const message = userInput.value.trim();
+      if (message !== '' && currentModel) {
+        addMessage(message, 'user');
+        userInput.value = '';
+        
+        // Add user message to conversation history
+        conversationHistory.push(`Human: ${message}`);
+        
+        // Limit conversation history to memory length
+        const memoryLength = parseInt(document.getElementById('memory-length').value);
+        if (conversationHistory.length > memoryLength) {
+          conversationHistory = conversationHistory.slice(-memoryLength);
+        }
+        
+        try {
+          const response = await fetch('http://localhost:11434/api/generate', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model: currentModel,
+              prompt: `${systemPrompt}\n${conversationHistory.join('\n')}\nAI:`,
+              stream: false,
+              options: {
+                temperature: parseFloat(document.getElementById('temperature').value),
+                num_predict: parseInt(document.getElementById('max-tokens').value),
+                top_p: parseFloat(document.getElementById('top-p').value)
+              }
+            }),
+          });
+
+          if (response.ok) {
+            const result = await response.json();
+            // Add AI response to conversation history
+            conversationHistory.push(`AI: ${result.response}`);
+            addAIMessage(result.response);
+          } else {
+            addAIMessage('Failed to get a response. Please try again or reload the model.');
+          }
+        } catch (error) {
+          console.error('Error:', error);
+          addAIMessage('An error occurred while processing your request. Please check your connection to Ollama.');
+        }
+      } else if (!currentModel) {
+        addAIMessage('Please load a model before sending a message.');
+      }
+    }
+
+    // Allow sending message with Enter key
+    document.getElementById('user-input').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        sendMessage();
+      }
+    });
+    
+    function toggleDarkMode() {
+      document.body.classList.toggle('dark-mode');
+    }
+
+    function toggleSettingsPanel() {
+      const settingsPanel = document.getElementById('settings-panel');
+      settingsPanel.style.display = settingsPanel.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function setDeviceSettings(device) {
+      const temperatureInput = document.getElementById('temperature');
+      const maxTokensInput = document.getElementById('max-tokens');
+      const memoryLengthInput = document.getElementById('memory-length');
+      
+      if (device === 'phone') {
+        temperatureInput.value = 0.6;
+        maxTokensInput.value = 128;
+        memoryLengthInput.value = 5;
+      } else if (device === 'pc') {
+        temperatureInput.value = 0.8;
+        maxTokensInput.value = 512;
+        memoryLengthInput.value = 20;
+      }
+      
+      updateParameterValues();
+    }
+
+    function updateParameterValues() {
+      document.getElementById('temperature-value').textContent = document.getElementById('temperature').value;
+      document.getElementById('max-tokens-value').textContent = document.getElementById('max-tokens').value;
+      document.getElementById('top-p-value').textContent = document.getElementById('top-p').value;
+      document.getElementById('memory-length-value').textContent = document.getElementById('memory-length').value;
+    }
+
+    document.getElementById('temperature').addEventListener('input', updateParameterValues);
+    document.getElementById('max-tokens').addEventListener('input', updateParameterValues);
+    document.getElementById('top-p').addEventListener('input', updateParameterValues);
+    document.getElementById('memory-length').addEventListener('input', updateParameterValues);
+
+    // Initialize model info and add welcome message
+    fetchModels();
+    addAIMessage(`
+# Welcome to the Advanced Ollama WebUI!
+
+This enhanced interface offers more customization and tools for your AI interactions:
+
+## Features:
+- **Model Selection**: Choose from a variety of AI models to suit your needs.
+- **Customizable Settings**: Fine-tune temperature, max tokens, top p, and memory length for optimal performance.
+- **System Prompt**: Define the AI's role, tone, and knowledge base.
+- **Conversation Memory**: Adjust how much context the AI remembers from previous messages.
+- **Dark Mode**: Toggle between light and dark themes for comfortable viewing.
+- **Device Presets**: Quickly switch between settings optimized for phone or PC use.
+- **Settings Panel**: Show or hide the settings panel to focus on the conversation.
+
+## Getting Started:
+1. **Select and Load a Model**: Choose your preferred model and click 'Load Model'.
+2. **Customize Settings**: Adjust the system prompt, parameters, and memory length as needed.
+3. **Start Interacting**: Begin your conversation with the AI!
+
+Explore the various options and settings to tailor your AI experience!
+    `);
+    
+    updateParameterValues();
+  </script>
+</body></html>
